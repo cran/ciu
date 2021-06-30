@@ -9,6 +9,7 @@
 #' @param sup.ciu.result ciu.result object of intermediate concept/output.
 #'
 #' @export ciu.relative
+#' @author Kary Främling
 ciu.relative <- function(sub.ciu.result, sup.ciu.result) {
   ciu.rel <- sub.ciu.result # Only CI changes, rest remains the same.
   ciu.rel$CI <- (sub.ciu.result$cmax - sub.ciu.result$cmin)/

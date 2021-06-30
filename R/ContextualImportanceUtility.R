@@ -1,8 +1,5 @@
 #"R" implementation of Contextual Importance and Utility.
 #
-# Pity, roxygen automatic documentation don't work for the "object methods",
-# have to do that manually.
-#
 # Kary Främling, created in 2019
 #
 
@@ -60,11 +57,13 @@
 #' \code{ciu <- ciu.new(...)}, then call \code{ciu.res <- ciu$<method>(...)}.
 #' The methods that can be used in `<method>` are:
 #' - \code{\link{explain}}
+#' - `meta.explain`, see [ciu.meta.explain] (but omit first parameter `ciu`).
 #' - \code{\link{barplot.ciu}}
 #' - \code{\link{ggplot.col.ciu}}
 #' - \code{\link{pie.ciu}}
 #' - \code{\link{plot.ciu}}
 #' - \code{\link{plot.ciu.3D}}
+#' - `textual`, see [ciu.textual] (but omit first parameter `ciu`).
 #'
 #' \emph{"Usage" section is here in "Details" section because Roxygen etc.
 #' don't support documentation of functions within functions.}
@@ -73,8 +72,12 @@
 #' @import graphics
 #' @import grDevices
 #' @import ggplot2
+#' @references Främling, K. *Contextual Importance and Utility in R: the 'ciu' Package.*
+#' In: Proceedings of 1st Workshop on Explainable Agency in Artificial Intelligence,
+#' at 35th AAAI Conference on Artificial Intelligence. Virtual, Online. February 8-9, 2021. pp. 110-114.
+#' <https://www.researchgate.net/publication/349521362_Contextual_Importance_and_Utility_in_R_the_%27ciu%27_Package>.
 #' @references Främling, K. *Explainable AI without Interpretable Model*. 2020, <https://arxiv.org/abs/2009.13996>.
-#' @references Främling, K. *Decision Theory Meets Explainable AI*. 2020, <https://doi.org/10.1007/978-3-030-51924-7_4>.
+#' @references Främling, K. *Decision Theory Meets Explainable AI*. 2020, <doi.org/10.1007/978-3-030-51924-7_4>.
 #' @references Främling, K. *Modélisation et apprentissage des préférences par réseaux de neurones pour l'aide à la décision multicritère*. 1996, <https://tel.archives-ouvertes.fr/tel-00825854/document> (title translation in English: *Learning and Explaining Preferences with Neural Networks for Multiple Criteria Decision Making*)
 #' @examples
 #' # Explaining the classification of an Iris instance with lda model.
@@ -140,6 +143,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
   # Initialize default values and "instance variables"
   o.model <- bb
   o.formula <- formula
+  o.data <- data
   o.data.inp <- NULL
   o.data.outp <- NULL
   o.absminmax <- abs.min.max
@@ -202,7 +206,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
         o.predict.function <- function(model, inputs) { predict(model, inputs, type="prob") }
     }
     else if ( inherits(o.model, "lm") ) { # lm
-        o.predict.function <- function(model, inputs) { predict(model, inputs) }
+      o.predict.function <- function(model, inputs) { predict(model, inputs) }
     }
     else {
       # This works at least with "lda" model, don't know with which other ones.
@@ -247,45 +251,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
       o.outputnames <- names(o.data.outp) # Shouldn't give worse result than NULL
   }
 
-  # Calculate CIU for specific instance
-  #
-  # Calculate Contextual Importance (CI) and Contextual Utility (CU) for a
-  # instance (Context) using the given "black-box" model.
-  #
-  # @param instance the current input values for the instance to explain. Should
-  # be a \link{data.frame} even though a \link{vector} or \link{matrix} might
-  # work too if input names and other needed metadata can be deduced from the
-  # dataset or other parameters given to \link{ciu::ciu.new}.
-  # @param ind.inputs.to.explain \link{vector} of indices for the inputs to be
-  # explained, i.e. for which CIU should be calculated. If NULL, then all
-  # inputs will be included.
-  # @param in.min.max.limits data.frame or matrix with one row per output and
-  # two columns, where the first column indicates the minimal value and the
-  # second column the maximal value for that output. ONLY NEEDED HERE IF not
-  # given as parameter to \link{ciu::ciu.new} or if the limits are different
-  # for this specific instance than the default ones.
-  # @param n.samples how many instances to generate for estimating CI and CU.
-  # For inputs of type \link{factor}, all possible combinations of input values
-  # is generated, so this parameter only influences how many instances are
-  # (at least) generated for continuous-valued inputs.
-  # @param target.concept if provided, then calculate CIU of inputs
-  # \code{ind.inputs.to.explain} relative to the given concept rather than
-  # relative to the actual output(s). \code{ind.inputs.to.explain} should
-  # normally be a subset (or all) of the inputs that \code{target.concept}
-  # consists of, even though that not required by the CIU calculation.
-  # If a "target.ciu" is provided, then the "target.concept" doesn't have to
-  # be included in the \code{vocabulary} gives as parameter to
-  # \link{ciu::ciu.new} (at least for the moment).
-  # @param target.ciu \code{ciu.result} object previously calculated for
-  # \code{target.concept}. Default value is NULL. If a \code{target.concept}
-  # is provided but \code{target.ciu=NULL}, then \code{target.ciu} is
-  # estimated by a call to "explain" with the \code{n.samples} value given as
-  # a parameter to this call. It may be useful to provide \code{target.ciu}
-  # if it should be estimated using some other (typically greater) value for
-  # \code{n.samples} than the default one, or if it has already been calculated
-  # for some reason.
-  #
-  # @return A \code{ciu.result} object (see \link{ciu.result.new})
+  # See 'ciu.explain()'
   explain <- function(instance, ind.inputs.to.explain, in.min.max.limits=NULL, n.samples=100,
                       target.concept=NULL, target.ciu=NULL) {
     o.last.instance <<- instance
@@ -372,7 +338,18 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     if ( is.null(continuous.ciu.input.set) )
       return(discrete.ciu.input.set)
     res <- continuous.ciu.input.set # This is the bigger (or same size) set so has to be done in this order.
-    res[,ind.discrete.to.explain] <- discrete.ciu.input.set[,ind.discrete.to.explain]
+    # Make sure we have exactly n.samples rows in discrete input set
+    if ( nrow(discrete.ciu.input.set) < n.samples ) {
+      drows <- nrow(discrete.ciu.input.set)
+      n <- (n.samples/drows + 1)*drows
+      discr <- discrete.ciu.input.set
+      discr <- discr[rep(seq(drows), n),]
+      #A[rep(seq(nrow(A)), n), ]
+    }
+    else {
+      discr <- discrete.ciu.input.set
+    }
+    res[1:nrow(res),ind.discrete.to.explain] <- discr[1:nrow(res),ind.discrete.to.explain]
     return(res)
   }
 
@@ -458,7 +435,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
   # order.
   # All "ind.inputs" columns of "data" parameter have to be of type
   # "character" or "factor".
-  create.discrete.ciu.input.set <- function(instance, ind.inputs, data) {
+  create.discrete.ciu.input.set <- function(instance, ind.inputs) {
     # We have to transform character type values into factors here.
     for ( i in 1:min(length(instance),length(o.inp.levels))) {
       if ( is.character(instance[,i]) ) {
@@ -487,25 +464,38 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     return(reps)
   }
 
-  # Function for plotting out the effect of changing values of one input on one output
-  # Returns: "void", or whatever happens to be result of last instruction.
-  # Arguments:
-  # inputs: the current input values for the instance to explain.
-  # ind.input: index of input to plot (X-axis).
-  # ind.output: index of input to plot (Y-axis).
-  # in.min.max.limits: same as for "explain" method.
-  # n.points: how many x,y pairs will be calculated, equally spaced over in.min.max.limits.
-  # remaining: plot parameters.
-  plot.ciu <- function(instance, ind.input, ind.output, in.min.max.limits=NULL, n.points=40, main=NULL, xlab="x", ylab="y", ylim=NULL, ...) {
-    # Check and set up minimum/maximum limits for inputs
-    if ( is.null(in.min.max.limits) )
-      in.min.max.limits <- o.in.minmax[ind.input,]
-    if ( is.null(in.min.max.limits) )
-      stop("No minimum/maximum limits provided to 'new' nor 'plot.ciu'")
-    in.min <- in.min.max.limits[1]
-    in.max <- in.min.max.limits[2]
-    interv <- (in.max - in.min)/n.points
-    xp <- seq(in.min,in.max,interv)
+  # See 'ciu.plot'.
+  plot.ciu <- function(instance, ind.input=1, ind.output=1, in.min.max.limits=NULL,
+                       n.points=40, main=NULL, xlab="x", ylab="y", ylim=NULL, ...) {
+    # Treatment depends on if it's a factor or numeric input. If it's
+    # "character", then convert to "factor" if possible.
+    if ( is.character(instance[,ind.input]) ) {
+      if ( is.null(o.inp.levels[[ind.input]]) )
+        instance[,ind.input] <- factor(instance[,ind.input])
+      else
+        instance[,ind.input] <- factor(instance[,ind.input], o.inp.levels[[ind.input]])
+    }
+
+    # First deal with "numeric" possibility.
+    if ( is.numeric(instance[,ind.input]) ) {
+      # Check and set up minimum/maximum limits for inputs
+      if ( is.null(in.min.max.limits) )
+        in.min.max.limits <- o.in.minmax[ind.input,]
+      if ( is.null(in.min.max.limits) )
+        stop("No minimum/maximum limits provided to 'new' nor 'plot.ciu'")
+      in.min <- in.min.max.limits[1]
+      in.max <- in.min.max.limits[2]
+      interv <- (in.max - in.min)/n.points
+      xp <- seq(in.min,in.max,interv)
+    }
+    else if ( is.factor(instance[,ind.input])) { # Deal with factor.
+      l <- levels(instance[,ind.input])
+      xp <- factor(l, levels = l)
+    }
+    else {
+      stop(paste("Unsupported data type:", class(instance[,ind.input])))
+    }
+
     if ( is.null(dim(instance)) )
       n.col <- length(instance)
     else
@@ -533,7 +523,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     if ( !is.null(o.outputnames) )
       outname <- o.outputnames[ind.output]
     else
-      outname <- "Z"
+      outname <- "Y"
     if ( is.null(xlab) ) {
       xlab <- in.name
     }
@@ -546,20 +536,20 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     }
 
     # Create plot, show current value
-    plot(xp, yp[,ind.output], type='l', ylim=ylim, main=main, xlab=xlab, ylab=ylab, ...)
-    points(instance[ind.input], cu.val[ind.output], col = "red", pch = 16, cex = 2)
+    if ( is.numeric(instance[,ind.input]) ) {
+      plot(xp, yp[,ind.output], type='l', ylim=ylim, main=main, xlab=xlab, ylab=ylab, ...)
+      points(instance[ind.input], cu.val[ind.output], col = "red", pch = 16, cex = 2)
+    }
+    else { # factor
+      if ( is.null(ylim) ) # A little clumsy here...
+        barplot(as.numeric(yp[,ind.output]), names=xp, space=0, main=main, xlab=xlab, ylab=ylab, ...)
+      else
+        barplot(as.numeric(yp[,ind.output]), names=xp, space=0, ylim=ylim, main=main, xlab=xlab, ylab=ylab, ...)
+      points(as.numeric(instance[,ind.input])-0.5, cu.val[ind.output], col = "red", pch = 16, cex = 2)
+    }
   }
 
-  # Function for 3D plotting the effect of changing values of two inputs on one output
-  # Returns: "void", or whatever happens to be result of last instruction.
-  # Arguments:
-  # instance: the current input values for the instance to explain.
-  # ind.inputs: indices of inputs to plot (X- and Y-axis).
-  # ind.output: index of input to plot (Z-axis).
-  # in.min.max.limits: same as for "explain" method.
-  # n.points: How many x/y values for the plot between in.mins and in.maxs.
-  # remaining: plot parameters.
-  #
+  # See 'ciu.plot.3D'.
   plot.ciu.3D <- function(instance, ind.inputs, ind.output=1, in.min.max.limits=NULL, n.points=40,
                           main=NULL, xlab=NULL, ylab=NULL, zlab=NULL, zlim=NULL, ...) {
     if ( is.null(in.min.max.limits) )
@@ -622,62 +612,25 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     points(trans3d(x.plot, y.plot, z.plot, pmat = vt), col = "red", pch = 16, cex = 3)
   }
 
-  # Create a barplot showing CI as the length of the bar and CU on color scale from
-  # red to green, via yellow, for the given inputs and the given output.
-  # Returns: "void", or whatever happens to be result of last instruction.
-  # Arguments:
-  # inputs: the current input values for the instance to explain/plot.
-  # ind.inputs: vector of indices for the inputs to be included in the plot. If NULL then all inputs will be included.
-  # ind.output: index of output to be explained.
-  # in.min.max.limits: a matrix with one row per output and two columns, where the first column indicates
-  #   the minimal value and the second column the maximal value for that output. ONLY NEEDED
-  #   if they were not provided to "new" or if they need to be different for this instance.
-  # n.samples: how many random instances to use for estimating CI and CU.
-  # neutral.CU: indicates when the Contextual Utility is considered
-  #   to be "negative". The default value of 0.5 seems quite logical for most cases.
-  # show.input.values: include input values after input labels or not. Default is TRUE.
-  # concepts.to.explain: list of concepts to use in the plot, as defined by vocabulary provided
-  #   as argument to ciu.new. if "ind.inputs=NULL", then use "concepts.to.explain" instead. If both
-  #   are NULL, then use all inputs.
-  # color.ramp.below.neutral: color ramp function as returned by function colorRamp(). Default color
-  #   ramp is from red3 to yellow.
-  # color.ramp.above.neutral: color ramp function as returned by function colorRamp(). Default color
-  #   ramp is from yellow to darkgreen.
-  # sort: NULL, "CI" or "CU". No sorting by default, other options are sorting by CI or CU.
-  # decreasing=FALSE: set to TRUE for decreasing sort (see arguments of sort()).
-  # Other arguments are the same as for "explain" method.
-  # main, xlab, xlim etc: usual plot parameters, possible to override the default ones provided
-  #   here if needed.
-  barplot.ciu <- function(instance, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL,
+  # See 'ciu.barplot'.
+  barplot.ciu <- function(instance=NULL, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL,
                           n.samples=100, neutral.CU=0.5,
                           show.input.values=TRUE, concepts.to.explain=NULL,
-                          target.concept=NULL, target.ciu=NULL,
+                          target.concept=NULL, target.ciu=NULL, ciu.meta = NULL,
                           color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
+                          use.influence=FALSE, influence.minmax = c(-1,1),
                           sort=NULL, decreasing=FALSE,
                           main=NULL, xlab=NULL, xlim=NULL, ...) {
 
-    # Check if concepts are to be explained or pure inputs.
-    # If no input indices are given, then use all inputs
-    explain.concepts <- FALSE
-    if ( !is.null(concepts.to.explain) ) {
-      explain.concepts <- TRUE
-      inp.names <- concepts.to.explain
+    # Allow using already existing result.
+    if ( is.null(ciu.meta) ) {
+      ciu.meta <- ciu.meta.explain(this, instance, ind.inputs=ind.inputs, in.min.max.limits=in.min.max.limits,
+                                   n.samples=n.samples, concepts.to.explain=concepts.to.explain,
+                                   target.concept=target.concept, target.ciu=target.ciu)
     }
     else {
-      if ( is.null(ind.inputs) ) {
-        if ( is.null(dim(instance)) )
-          ind.inputs <- 1:length(instance)
-        else
-          ind.inputs <- 1:ncol(instance)
-      }
-      inp.names <- o.input.names[ind.inputs]
-      if ( is.null(inp.names) )
-        inp.names <- names(instance)[ind.inputs]
+      instance <- ciu.meta$instance
     }
-    n.inps <- length(inp.names)
-
-    # Again, "instance" has to be a data.frame so this can't be NULL.
-    inst.name <- rownames(instance)
 
     # Use default limits if they are not given explicitly.
     if ( is.null(in.min.max.limits) )
@@ -685,22 +638,15 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     if ( is.null(in.min.max.limits) )
       stop("No minimum/maximum limits provided to 'new' nor 'explain'")
 
-    # Set colorRamps to use.
-    cols.below <- ifelse ( is.null(color.ramp.below.neutral), colorRamp(c("red3", "yellow")), color.ramp.below.neutral)
-    cols.above <- ifelse ( is.null(color.ramp.above.neutral), colorRamp(c("yellow","darkgreen")), color.ramp.above.neutral)
-
     # We have to get CI/CU one input at a time, so have to do it as a loop.
+    ind.inputs <- ciu.meta$ind.inputs
+    inp.names <- ciu.meta$inp.names
+    n.inps <- length(ciu.meta$ciuvals)
     ci.cu <- matrix(0, nrow=n.inps, ncol=2) # Initialize CI/CU matrix
     for ( i in 1:n.inps ) {
       f.label <- inp.names[i]
-      if ( explain.concepts )
-        expl.inps <- o.vocabulary[concepts.to.explain[i]][[1]]
-      else
-        expl.inps <- c(ind.inputs[i])
-      ciu <- explain(instance, ind.inputs.to.explain=expl.inps,
-                     in.min.max.limits=in.min.max.limits,
-                     n.samples=n.samples,target.concept=target.concept, target.ciu=target.ciu)
-      ci.cu[i,] <- as.numeric(ciu[ind.output,1:2])
+      ciu.res <- ciu.meta$ciuvals[[i]]
+      ci.cu[i,] <- as.numeric(ciu.res[ind.output,1:2])
     }
 
     # Limit everything to [0,1]
@@ -710,15 +656,27 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     # We get error otherwise...
     CIs <- as.numeric(ci.cu[,1])
     CUs <- as.numeric(ci.cu[,2])
+    C.influence <- (influence.minmax[2] - influence.minmax[1])*CIs*(CUs - neutral.CU)
+
+    # Again, "instance" has to be a data.frame so this can't be NULL.
+    inst.name <- rownames(instance)
+
+    # Set colorRamps to use.
+    cols.below <- ifelse ( is.null(color.ramp.below.neutral), colorRamp(c("red3", "yellow")), color.ramp.below.neutral)
+    cols.above <- ifelse ( is.null(color.ramp.above.neutral), colorRamp(c("yellow","darkgreen")), color.ramp.above.neutral)
 
     # Labels for the bars. Haven't tested what happens if this is NULL, maybe still fine.
-    if ( !explain.concepts ) {
+    if ( is.null(concepts.to.explain) ) {
       # Add input values to input labels
       if ( show.input.values ) {
         for ( i in 1:length(inp.names) ) {
           value <- instance[ind.inputs[i]]
-          if ( is.data.frame(value) )
-            value <- value[[1]] # Crazy checks...
+          if ( is.data.frame(value) ) { # Crazy checks...
+            if ( ncol(value) > 0 ) # For intermediate concepts that have no value.
+              value <- value[[1]]
+            else
+              value <- ""
+          }
           if ( is.numeric(value) )
             value <- format(value, digits=2)
           inp.names[i] <- paste(inp.names[i], " (", value, ")", sep="")
@@ -729,7 +687,10 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     # Sort results?
     if ( !is.null(sort) ) {
       if ( sort=="CI") {
-        s <- sort(CIs, decreasing=decreasing, index.return=TRUE)
+        if ( use.influence )
+          s <- sort(C.influence, decreasing=decreasing, index.return=TRUE)
+        else
+          s <- sort(CIs, decreasing=decreasing, index.return=TRUE)
       }
       else if ( sort=="CU" )  {
         s <- sort(CUs, decreasing=decreasing, index.return=TRUE)
@@ -739,19 +700,33 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
       }
       CIs <- CIs[s$ix]
       CUs <- CUs[s$ix]
+      C.influence <- C.influence[s$ix]
       inp.names <- inp.names[s$ix]
     }
 
-    # Get plotting values. Bar length corresponds to CI.
-    # Green bar for "positive CU", red for "negative CU".
-    # Darker color the higher the abs(CU) value is. Should still fine-tune this.
-    bar.heights <- CIs # Simple for bar heights. More work for CU<->colors
-    below <- CUs < neutral.CU; above <- CUs >= neutral.CU
-    cols1 <- rgb(cols.below((CUs[below])*(1/neutral.CU))/255)
-    cols2<-rgb(cols.above((CUs[above]-neutral.CU)*(1/(1-neutral.CU)))/255)
-    bar.col <- c(cols1, cols2) # Not right, just initialize. Not most elegant in the world...
-    bar.col[below] <- cols1
-    bar.col[above] <- cols2
+    # Influence plot requires small manipulations.
+    if ( use.influence ) {
+      bar.heights <- C.influence
+      below <- bar.heights < 0; above <- bar.heights >= 0
+      pos_color <- rgb(cols.above(1)/255)
+      neg_color <- rgb(cols.below(0)/255)
+      bar.col <- rep(pos_color, length(CIs))
+      bar.col[below] <- neg_color
+      my.xlab <- "Contextual Influence"
+    }
+    else{
+      # Get plotting values. Bar length corresponds to CI.
+      # Green bar for "positive CU", red for "negative CU".
+      # Darker color the higher the abs(CU) value is. Should still fine-tune this.
+      bar.heights <- CIs # Simple for bar heights. More work for CU<->colors
+      below <- CUs < neutral.CU; above <- CUs >= neutral.CU
+      cols1 <- rgb(cols.below((CUs[below])*(1/neutral.CU))/255)
+      cols2 <- rgb(cols.above((CUs[above]-neutral.CU)*(1/(1-neutral.CU)))/255)
+      bar.col <- c(cols1, cols2) # Not right, just initialize. Not most elegant in the world...
+      bar.col[below] <- cols1
+      bar.col[above] <- cols2
+      my.xlab <- "Contextual Importance"
+    }
 
     # Plot title
     main.title <- main
@@ -764,67 +739,29 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     }
 
     # Do bar plot. Limit X axis to 1 because that's normally the maximal CI value.
-    if ( is.null(xlab) ) xlab <- "Contextual Importance"
-    if ( is.null(xlim) ) xlim <- c(0,1)
+    if ( is.null(xlab) ) xlab <- my.xlab
+    if ( is.null(xlim) ) ifelse(use.influence, xlim <- c(min(bar.heights),max(bar.heights)), xlim <- c(0,1))
     barplot(bar.heights,col=bar.col,names=inp.names,horiz=T,las=1,
             main=main.title, xlab=xlab, xlim=xlim, ...)
   }
 
-  # Create a pie chart showing CI as the area of slice and CU on color scale from
-  # red to green, via yellow, for the given inputs and the given output.
-  # Returns: "void", or whatever happens to be result of last instruction.
-  # Arguments:
-  # inputs: the current input values for the instance to explain/plot.
-  # ind.inputs: vector of indices for the inputs to be included in the plot. If NULL then all inputs will be included.
-  # ind.output: index of output to be explained.
-  # in.min.max.limits: a matrix with one row per output and two columns, where the first column indicates
-  #   the minimal value and the second column the maximal value for that output. ONLY NEEDED
-  #   if they were not provided to "new" or if they need to be different for this instance.
-  # n.samples: how many random instances to use for estimating CI and CU.
-  # neutral.CU: indicates when the Contextual Utility is considered
-  #   to be "negative". The default value of 0.5 seems quite logical for most cases.
-  # show.input.values: include input values after input labels or not. Default is TRUE.
-  # concepts.to.explain: list of concepts to use in the plot, as defined by vocabulary provided
-  #   as argument to ciu.new. if "ind.inputs=NULL", then use "concepts.to.explain" instead. If both
-  #   are NULL, then use all inputs.
-  # color.ramp.below.neutral: color ramp function as returned by function colorRamp(). Default color
-  #   ramp is from red3 to yellow.
-  # color.ramp.above.neutral: color ramp function as returned by function colorRamp(). Default color
-  #   ramp is from yellow to darkgreen.
-  # sort: NULL, "CI" or "CU". No sorting by default, other options are sorting by CI or CU.
-  # decreasing=FALSE: set to TRUE for decreasing sort (see arguments of sort()).
-  # Other arguments are the same as for "explain" method.
-  # main, xlab, xlim etc: usual plot parameters, possible to override the default ones provided
-  #   here if needed.
-  pie.ciu <- function(instance, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL,
+  # See 'ciu.pie'.
+  pie.ciu <- function(instance=NULL, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL,
                       n.samples=100, neutral.CU=0.5,
                       show.input.values=TRUE, concepts.to.explain=NULL,
-                      target.concept=NULL, target.ciu=NULL,
+                      target.concept=NULL, target.ciu=NULL, ciu.meta = NULL,
                       color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
                       sort=NULL, decreasing=FALSE,
                       main=NULL, ...) {
-    # Check if concepts are to be explained or pure inputs.
-    # If no input indices are given, then use all inputs
-    explain.concepts <- FALSE
-    if ( !is.null(concepts.to.explain) ) {
-      explain.concepts <- TRUE
-      inp.names <- concepts.to.explain
+    # Allow using already existing result.
+    if ( is.null(ciu.meta) ) {
+      ciu.meta <- ciu.meta.explain(this, instance, ind.inputs=ind.inputs, in.min.max.limits=in.min.max.limits,
+                                   n.samples=n.samples, concepts.to.explain=concepts.to.explain,
+                                   target.concept=target.concept, target.ciu=target.ciu)
     }
     else {
-      if ( is.null(ind.inputs) ) {
-        if ( is.null(dim(instance)) )
-          ind.inputs <- 1:length(instance)
-        else
-          ind.inputs <- 1:ncol(instance)
-      }
-      inp.names <- o.input.names[ind.inputs]
-      if ( is.null(inp.names) )
-        inp.names <- names(instance)[ind.inputs]
+      instance <- ciu.meta$instance
     }
-    n.inps <- length(inp.names)
-
-    # Again, "instance" has to be a data.frame so this can't be NULL.
-    inst.name <- rownames(instance)
 
     # Use default limits if they are not given explicitly.
     if ( is.null(in.min.max.limits) )
@@ -832,22 +769,15 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     if ( is.null(in.min.max.limits) )
       stop("No minimum/maximum limits provided to 'new' nor 'explain'")
 
-    # Set colorRamps to use.
-    cols.below <- ifelse ( is.null(color.ramp.below.neutral), colorRamp(c("red3", "yellow")), color.ramp.below.neutral)
-    cols.above <- ifelse ( is.null(color.ramp.above.neutral), colorRamp(c("yellow","darkgreen")), color.ramp.above.neutral)
-
     # We have to get CI/CU one input at a time, so have to do it as a loop.
+    ind.inputs <- ciu.meta$ind.inputs
+    inp.names <- ciu.meta$inp.names
+    n.inps <- length(ciu.meta$ciuvals)
     ci.cu <- matrix(0, nrow=n.inps, ncol=2) # Initialize CI/CU matrix
     for ( i in 1:n.inps ) {
       f.label <- inp.names[i]
-      if ( explain.concepts )
-        expl.inps <- o.vocabulary[concepts.to.explain[i]][[1]]
-      else
-        expl.inps <- c(ind.inputs[i])
-      ciu <- explain(instance, ind.inputs.to.explain=expl.inps,
-                     in.min.max.limits=in.min.max.limits,
-                     n.samples=n.samples,target.concept=target.concept, target.ciu=target.ciu)
-      ci.cu[i,] <- as.numeric(ciu[ind.output,1:2])
+      ciu.res <- ciu.meta$ciuvals[[i]]
+      ci.cu[i,] <- as.numeric(ciu.res[ind.output,1:2])
     }
 
     # Limit everything to [0,1]
@@ -858,14 +788,25 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     CIs <- as.numeric(ci.cu[,1])
     CUs <- as.numeric(ci.cu[,2])
 
+    # Again, "instance" has to be a data.frame so this can't be NULL.
+    inst.name <- rownames(instance)
+
+    # Set colorRamps to use.
+    cols.below <- ifelse ( is.null(color.ramp.below.neutral), colorRamp(c("red3", "yellow")), color.ramp.below.neutral)
+    cols.above <- ifelse ( is.null(color.ramp.above.neutral), colorRamp(c("yellow","darkgreen")), color.ramp.above.neutral)
+
     # Labels for the bars. Haven't tested what happens if this is NULL, maybe still fine.
-    if ( !explain.concepts ) {
+    if ( is.null(concepts.to.explain) ) {
       # Add input values to input labels
       if ( show.input.values ) {
         for ( i in 1:length(inp.names) ) {
           value <- instance[ind.inputs[i]]
-          if ( is.data.frame(value) )
-            value <- value[[1]] # Crazy checks...
+          if ( is.data.frame(value) ) { # Crazy checks...
+            if ( ncol(value) > 0 ) # For intermediate concepts that have no value.
+              value <- value[[1]]
+            else
+              value <- ""
+          }
           if ( is.numeric(value) )
             value <- format(value, digits=2)
           inp.names[i] <- paste(inp.names[i], " (", value, ")", sep="")
@@ -914,144 +855,68 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
         main=main.title, ...)
   }
 
-  # CIU feature importance/utility plot using ggplot. All parameters are not
-  # implemented yet in this ggplot version.
-  # Also, this method only works with the discrete input case for the moment.
-  # - output.names: vector with names of outputs to include. If NULL (default),
-  #   then include all.
-  # - discrete.inputs: temporary parameter for indicating if all inputs are
-  #   discrete. Should not be needed once "explain" has been updated to deal
-  #   with both discrete and continuous inputs.
-  # Also, not found out yet how to sort features according to CI (or CU)
-  # for all facets, now they are all sorted according to mean value of all CI
-  # (which might actually be a good choice).
-  ggplot.col.ciu <- function(instance, ind.inputs=NULL, output.names=NULL,
-                             in.min.max.limits=NULL,
-                             n.samples=100, neutral.CU=0.5,
-                             show.input.values=TRUE, concepts.to.explain=NULL,
-                             target.concept=NULL, target.ciu=NULL,
-                             low.color="red", mid.color="yellow",
-                             high.color="darkgreen",
-                             sort=NULL, decreasing=FALSE, # These are not used yet.
-                             main=NULL) {
-
-    # Check if concepts are to be explained or pure inputs.
-    # If no input indices are given, then use all inputs
-    explain.concepts <- FALSE
-    if ( !is.null(concepts.to.explain) ) {
-      explain.concepts <- TRUE
-      inp.names <- concepts.to.explain
-    }
-    else {
-      if ( is.null(ind.inputs) ) {
-        if ( is.null(dim(instance)) )
-          ind.inputs <- 1:length(instance)
-        else
-          ind.inputs <- 1:ncol(instance)
-      }
-      inp.names <- names(instance)[ind.inputs]
-    }
-    n.inps <- length(inp.names)
-
-    # Again, "instance" has to be a data.frame so this can't be NULL.
-    inst.name <- rownames(instance)
-
-    # Create data frame for ggplot plotting
-    ci.cu <- data.frame()
-    for ( i in 1:n.inps ) {
-      f.label <- inp.names[i]
-      if ( explain.concepts )
-        expl.inps <- o.vocabulary[concepts.to.explain[i]][[1]]
-      else
-        expl.inps <- c(ind.inputs[i])
-      ciu <- explain(instance, ind.inputs.to.explain=expl.inps, in.min.max.limits=in.min.max.limits,
-                     n.samples=n.samples,target.concept=target.concept, target.ciu=target.ciu)
-      if ( show.input.values ) {
-        # Don't really understand why [1,1] is necessary but otherwise factor values display numerically (not as strings).
-        f.label <- paste0(f.label, " (", instance[ind.inputs[i]][1,1], ")")
-      }
-
-      # Some special treatment here for getting output names correct if result
-      # variable is a factor, which leads to as many output classes as levels.
-      if ( is.factor(o.data.outp[,1]) && !is.null(o.outputnames) ) {
-        if ( length(levels(o.data.outp[,1])) == length(o.outputnames))
-          rownames(ciu) <- o.outputnames
-      }
-
-      # Only include the outputs that are indicated to be included,
-      # otherwise include all
-      if ( !is.null(output.names) ) {
-        ciu <- ciu[row.names(ciu) %in% output.names,]
-      }
-      ci.cu <- rbind(ci.cu, data.frame(Label=rownames(ciu), Output.Value=ciu$outval,
-                                       in.names=inp.names[i], CI=ciu$CI, CU=ciu$CU,
-                                       Output=paste0(rownames(ciu), " (",
-                                                     format(ciu$outval, digits=3), ")"),
-                                       feature.labels=f.label)
-      )
-    }
-
-    # Sort facets according to output value. Sorting factor levels correctly does the job.
-    ci.cu$Output <- factor(ci.cu$Output, unique(ci.cu$Output[order(ci.cu$Output.Value, decreasing = TRUE)]))
-
-    # Check if main plot title has been given as parameter, otherwise use default one
-    if ( is.null(main) ) {
-      main <- paste("Studied instance (context):", inst.name)
-      if  ( !is.null(target.concept) )
-        main <- paste0(main, "\nTarget concept is \"", target.concept, "\"")
-    }
-
-    # Create the plot. Have to some tricks here for avoiding warnings either
-    # by devtools.check or during execution. Apparently devtools.check
-    # doesn't understand attach() explicitly nor done by ggplot
-    fl <- ci.cu$feature.labels; ci <- ci.cu$CI; cu <- ci.cu$CU
-    ggplot(ci.cu) +
-      geom_col(aes(reorder(fl, ci), ci, fill=cu)) +
-      coord_flip() +
-      facet_wrap(~Output, labeller=label_both) + # Use scales="free_y" is different ordering for every facet
-      ggtitle(main) +
-      xlab("Feature") +
-      ylim(0,1) +
-      scale_fill_gradient2(low=low.color, mid=mid.color, high=high.color, midpoint=neutral.CU)
+  #' Create `ciu` object from this `CIU` object.
+  #'
+  #' @return `ciu` object
+  #' @export
+  as.ciu <- function() {
+    ciu <- list(
+      model = o.model,
+      formula = o.formula,
+      data = o.data,
+      data.in = o.data.inp,
+      data.out = o.data.outp,
+      abs.min.max = o.absminmax,
+      inp.levels = o.inp.levels,
+      input.names = o.input.names,
+      output.names = o.outputnames,
+      in.min.max.limits = o.in.minmax,
+      predict.function = o.predict.function,
+      vocabulary = o.vocabulary
+    )
+    class(ciu) <- c("ciu", class(ciu))
+    return(ciu)
   }
 
   # Return list of "public" methods
-  pub <- list(
+  this <- list(
+    as.ciu = function() { as.ciu() },
     explain = function(instance, ind.inputs.to.explain, in.min.max.limits=NULL, n.samples=100,
                        target.concept=NULL, target.ciu=NULL) {
       explain(instance, ind.inputs.to.explain, in.min.max.limits, n.samples, target.concept, target.ciu)
     },
-    # explain.discrete.inputs = function(data, instance, ind.inputs, target.concept=NULL, target.ciu=NULL) {
-    #   explain.discrete.inputs(data, instance, ind.inputs, target.concept, target.ciu)
-    # },
-    # explain.vocabulary = function(instance, concepts.to.explain, in.min.max.limits=NULL, n.samples=1000,
-    #                               target.concept=NULL, target.ciu=NULL) {
-    #   explain.vocabulary(instance, concepts.to.explain, in.min.max.limits, n.samples,
-    #                      target.concept, target.ciu)
-    # },
-    plot.ciu = function(instance, ind.input, ind.output, in.min.max.limits=NULL, n.points=40, main=NULL, xlab=NULL, ylab=NULL, ylim=NULL, ...) {
+    meta.explain = function(instance, ind.inputs=NULL, in.min.max.limits=NULL,
+                            n.samples=100, concepts.to.explain=NULL,
+                            target.concept=NULL, target.ciu=NULL) {
+      ciu.meta.explain(as.ciu(), instance, ind.inputs, in.min.max.limits,
+                       n.samples, concepts.to.explain,
+                       target.concept, target.ciu)
+    },
+    plot.ciu = function(instance, ind.input=1, ind.output=1, in.min.max.limits=NULL, n.points=40, main=NULL, xlab=NULL, ylab=NULL, ylim=NULL, ...) {
       plot.ciu (instance, ind.input, ind.output, in.min.max.limits, n.points, main, xlab, ylab, ylim, ...)
     },
     plot.ciu.3D = function(instance, ind.inputs, ind.output, in.min.max.limits=NULL, n.points=40,
                            main=NULL, xlab=NULL, ylab=NULL, zlab=NULL, zlim=NULL, ...) {
       plot.ciu.3D(instance, ind.inputs, ind.output, in.min.max.limits, n.points, main, xlab, ylab, zlab, zlim, ...)
     },
-    barplot.ciu = function(instance, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
+    barplot.ciu = function(instance=NULL, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
                            neutral.CU=0.5, show.input.values=TRUE, concepts.to.explain=NULL, target.concept=NULL, target.ciu=NULL,
-                           color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
+                           ciu.meta = NULL, color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
+                           use.influence=FALSE, influence.minmax = c(-1,1),
                            sort=NULL, decreasing=FALSE,
                            main= NULL, xlab=NULL, xlim=NULL, ...) {
       barplot.ciu(instance, ind.inputs, ind.output, in.min.max.limits, n.samples, neutral.CU, show.input.values,
-                  concepts.to.explain, target.concept, target.ciu, color.ramp.below.neutral, color.ramp.above.neutral,
-                  sort, decreasing, main, xlab, xlim, ...)
+                  concepts.to.explain, target.concept, target.ciu, ciu.meta, color.ramp.below.neutral, color.ramp.above.neutral,
+                  use.influence, influence.minmax, sort, decreasing, main, xlab, xlim, ...)
     },
-    pie.ciu = function(instance, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
-                       neutral.CU=0.5, show.input.values=TRUE, concepts.to.explain=NULL, target.concept=NULL, target.ciu=NULL,
+    pie.ciu = function(instance=NULL, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
+                       neutral.CU=0.5, show.input.values=TRUE, concepts.to.explain=NULL,
+                       target.concept=NULL, target.ciu=NULL, ciu.meta = NULL,
                        color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
                        sort=NULL, decreasing=FALSE,
                        main= NULL, ...) {
       pie.ciu(instance, ind.inputs, ind.output, in.min.max.limits, n.samples, neutral.CU,
-              show.input.values, concepts.to.explain, target.concept, target.ciu,
+              show.input.values, concepts.to.explain, target.concept, target.ciu, ciu.meta,
               color.ramp.below.neutral, color.ramp.above.neutral,
               sort, decreasing, main, ...)
     },
@@ -1060,21 +925,47 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
                               n.samples=100, neutral.CU=0.5,
                               show.input.values=TRUE, concepts.to.explain=NULL,
                               target.concept=NULL, target.ciu=NULL,
+                              ciu.meta = NULL,
                               low.color="red", mid.color="yellow",
                               high.color="darkgreen",
+                              use.influence=FALSE, influence.minmax = c(-1,1),
                               sort=NULL, decreasing=FALSE, # These are not used yet.
                               main=NULL) {
-      ggplot.col.ciu(instance, ind.inputs, output.names, in.min.max.limits,
+      ciu.ggplot.col(as.ciu(), instance, ind.inputs, output.names, in.min.max.limits,
                      n.samples, neutral.CU,
                      show.input.values, concepts.to.explain,
-                     target.concept, target.ciu,
+                     target.concept, target.ciu, ciu.meta,
                      low.color, mid.color, high.color,
+                     use.influence,influence.minmax,
                      sort, decreasing, main)
+    },
+    textual = function(instance=NULL, ind.inputs=NULL, ind.output=1,
+                       in.min.max.limits=NULL,
+                       n.samples=100, neutral.CU=0.5,
+                       show.input.values=TRUE, concepts.to.explain=NULL,
+                       target.concept=NULL, target.ciu=NULL,
+                       ciu.meta = NULL,
+                       sort="CI", n.features = NULL,
+                       use.text.effects = FALSE,
+                       CI.voc = data.frame(limits=c(0.2,0.4,0.6,0.8,1.0),
+                                           texts=c("not important","slightly important",
+                                                   "important","very important","extremely important")),
+                       CU.voc = data.frame(limits=c(0.2,0.4,0.6,0.8,1.0),
+                                           texts=c("very bad","bad","average","good","very good"))) {
+      ciu.textual(as.ciu(), instance, ind.inputs, ind.output,
+                  in.min.max.limits,
+                  n.samples, neutral.CU,
+                  show.input.values, concepts.to.explain,
+                  target.concept, target.ciu,
+                  ciu.meta,
+                  sort, n.features,
+                  use.text.effects,
+                  CI.voc, CU.voc)
     }
   )
 
-  class(pub) <- c("CIU", class(pub))
-  return(pub)
+  class(this) <- c("CIU", class(this))
+  return(this)
 }
 
 

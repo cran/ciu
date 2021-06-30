@@ -17,3 +17,6 @@ Calculate CIU of a sub-concept/input relative to an intermediate
 concept (or output). The parameters must be of class "ciu.result" or a
 \link{data.frame} with compatible columns.
 }
+\author{
+Kary Främling
+}
