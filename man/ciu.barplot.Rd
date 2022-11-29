@@ -20,7 +20,6 @@ ciu.barplot(
   color.ramp.below.neutral = NULL,
   color.ramp.above.neutral = NULL,
   use.influence = FALSE,
-  influence.minmax = c(-1, 1),
   sort = NULL,
   decreasing = FALSE,
   main = NULL,
@@ -38,7 +37,7 @@ with \code{CIU} object as created by \link{ciu.new}).}
 names and other needed metadata can be deduced from the dataset or other
 parameters given to \code{\link{ciu.new}}.}
 
-\item{ind.inputs}{\code{\link{vector}} of indices for the inputs to be
+\item{ind.inputs}{Vector of indices for the inputs to be
 included in the plot. If NULL then all inputs will be included.}
 
 \item{ind.output}{Index of output to be explained.}
@@ -93,8 +92,6 @@ than calling \link{ciu.meta.explain}.}
 \item{use.influence}{Plot using "influence" rather than CIU, i.e. a
 LIME-like barplot. Default is FALSE.}
 
-\item{influence.minmax}{Range to use for influence values.}
-
 \item{sort}{NULL, "CI" or "CU".}
 
 \item{decreasing}{Set to TRUE for decreasing sort.}
@@ -115,10 +112,6 @@ Create a barplot showing CI as the length of the bar and CU on color scale from
 red to green, via yellow, for the given inputs and the given output.
 }
 \seealso{
-\link{ggplot.col.ciu}
-
-\link{pie.ciu}
-
 \link{ciu.new}
 
 \link{ciu.explain}

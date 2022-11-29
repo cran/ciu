@@ -56,13 +56,13 @@
 #' first get a `CIU` object by calling \code{\link{ciu.new}} as e.g.
 #' \code{ciu <- ciu.new(...)}, then call \code{ciu.res <- ciu$<method>(...)}.
 #' The methods that can be used in `<method>` are:
-#' - \code{\link{explain}}
+#' - `explain`, see [ciu.explain] (but omit first parameter `ciu`)
 #' - `meta.explain`, see [ciu.meta.explain] (but omit first parameter `ciu`).
-#' - \code{\link{barplot.ciu}}
-#' - \code{\link{ggplot.col.ciu}}
-#' - \code{\link{pie.ciu}}
-#' - \code{\link{plot.ciu}}
-#' - \code{\link{plot.ciu.3D}}
+#' - `barplot.ciu`, see [ciu.barplot] (but omit first parameter `ciu`)
+#' - `ggplot.col.ciu`, see [ciu.ggplot.col] (but omit first parameter `ciu`)
+#' - `pie.ciu`, see [ciu.pie] (but omit first parameter `ciu`)
+#' - `plot.ciu`, see [ciu.plot] (but omit first parameter `ciu`)
+#' - `plot.ciu.3D`, see [ciu.plot.3D] (but omit first parameter `ciu`)
 #' - `textual`, see [ciu.textual] (but omit first parameter `ciu`).
 #'
 #' \emph{"Usage" section is here in "Details" section because Roxygen etc.
@@ -75,7 +75,6 @@
 #' @references Främling, K. *Contextual Importance and Utility in R: the 'ciu' Package.*
 #' In: Proceedings of 1st Workshop on Explainable Agency in Artificial Intelligence,
 #' at 35th AAAI Conference on Artificial Intelligence. Virtual, Online. February 8-9, 2021. pp. 110-114.
-#' <https://www.researchgate.net/publication/349521362_Contextual_Importance_and_Utility_in_R_the_%27ciu%27_Package>.
 #' @references Främling, K. *Explainable AI without Interpretable Model*. 2020, <https://arxiv.org/abs/2009.13996>.
 #' @references Främling, K. *Decision Theory Meets Explainable AI*. 2020, <doi.org/10.1007/978-3-030-51924-7_4>.
 #' @references Främling, K. *Modélisation et apprentissage des préférences par réseaux de neurones pour l'aide à la décision multicritère*. 1996, <https://tel.archives-ouvertes.fr/tel-00825854/document> (title translation in English: *Learning and Explaining Preferences with Neural Networks for Multiple Criteria Decision Making*)
@@ -111,6 +110,7 @@
 #' ciu$plot.ciu.3D(iris_test,c(3,4),2,main=levels(iris$Species)[2])
 #' ciu$plot.ciu.3D(iris_test,c(3,4),3,main=levels(iris$Species)[3])
 #'
+#' \dontrun{
 #' # Same thing with a regression task, the Boston Housing data set. Instance
 #' # #370 has the highest valuation (50k$). Model is gbm, which performs
 #' # decently here. Plotting with "standard" bar plot this time.
@@ -129,6 +129,7 @@
 #'
 #' # Method "plot" for studying the black-box behavior and CIU one input at a time.
 #' ciu$plot.ciu(Boston[370,1:13],13)
+#' }
 #'
 #' @author Kary Främling
 # # Remark: "lm" is a really bad model for Boston Housing data set! It gives
@@ -156,6 +157,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
   o.last.instance <- NULL
   o.last.ciu <- NULL
   o.last.explained.inp.inds <- NULL
+  o.predict.function <- NULL
 
   # Deal with formula+data first. If one is missing, then ignore other.
   if ( !is.null(formula) && !is.null(data) ) {
@@ -187,8 +189,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
   }
 
   # Set prediction function according to parameter or to model type.
-  o.predict.function <- predict.function
-  if ( is.null(o.predict.function) ) {
+  if ( is.null(predict.function) ) {
     if ( inherits(o.model, "CIU.BlackBox") || inherits(o.model, "FunctionApproximator") ) {
       o.predict.function <- function(model, inputs) { model$eval(inputs) }
       # We have to do extra check here for RBF since support for formula was introduced
@@ -205,6 +206,9 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
       else
         o.predict.function <- function(model, inputs) { predict(model, inputs, type="prob") }
     }
+    else if ( inherits(o.model,"Learner") ) { #mlr3
+      o.predict.function <- function(model, inputs) { model$predict_newdata(inputs)$prob }
+    }
     else if ( inherits(o.model, "lm") ) { # lm
       o.predict.function <- function(model, inputs) { predict(model, inputs) }
     }
@@ -215,6 +219,9 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
         return(pred$posterior)
       }
     }
+  }
+  else {
+    o.predict.function <- predict.function
   }
 
   # If no absmin/max matrix is given, then get it from data, if provided.
@@ -458,9 +465,15 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     reps <- rbind(instance,instance[rep(1,nrow(rep.ciu)-1),])
     reps[,ind.inputs] <- rep.ciu
 
-    # Finally shuffle rows randomly
+    # Shuffle rows randomly
     rows <- sample(nrow(reps))
     reps <- reps[rows,]
+
+    # Have to restore "ordered" columsn if there are any
+    for ( i in 1:length(ind.inputs) )
+      if ( is.ordered(instance[,ind.inputs[i]]) )
+        reps[,ind.inputs[i]] <- as.ordered(reps[,ind.inputs[i]])
+
     return(reps)
   }
 
@@ -549,6 +562,127 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     }
   }
 
+  # Set neutral.CU="" to avoid having a neutral, orange line.
+  ggplot.ciu <- function(instance, ind.input=1, ind.output=1, in.min.max.limits=NULL,
+                         n.points=40, main=NULL, xlab="x", ylab="y", ylim=NULL,
+                         illustrate.CIU=FALSE, neutral.CU=0.5, CIU.illustration.colours=c("red", "orange", "green", "blue")) {
+    # Bogus line just to get rid of strange NOTE i Check: "Undefined global functions or variables: x y"
+    x <- y <- 0
+
+    # Treatment depends on if it's a factor or numeric input. If it's
+    # "character", then convert to "factor" if possible.
+    if ( is.character(instance[,ind.input]) ) {
+      if ( is.null(o.inp.levels[[ind.input]]) )
+        instance[,ind.input] <- factor(instance[,ind.input])
+      else
+        instance[,ind.input] <- factor(instance[,ind.input], o.inp.levels[[ind.input]])
+    }
+
+    # First deal with "numeric" possibility.
+    if ( is.numeric(instance[,ind.input]) ) {
+      # Check and set up minimum/maximum limits for inputs
+      if ( is.null(in.min.max.limits) )
+        in.min.max.limits <- o.in.minmax[ind.input,]
+      if ( is.null(in.min.max.limits) )
+        stop("No minimum/maximum limits provided to 'new' nor 'plot.ciu'")
+      in.min <- in.min.max.limits[1]
+      in.max <- in.min.max.limits[2]
+      interv <- (in.max - in.min)/n.points
+      xp <- seq(in.min,in.max,interv)
+    }
+    else if ( is.factor(instance[,ind.input])) { # Deal with factor.
+      l <- levels(instance[,ind.input])
+      xp <- factor(l, levels = l)
+    }
+    else {
+      stop(paste("Unsupported data type:", class(instance[,ind.input])))
+    }
+
+    if ( is.null(dim(instance)) )
+      n.col <- length(instance)
+    else
+      n.col <- ncol(instance)
+    if ( is.data.frame(instance)) {
+      m <- instance[1,] # Initialize as data frame
+      m[1:length(xp),] <- instance[1,]
+    }
+    else {
+      m <- matrix(instance, ncol=n.col, nrow=length(xp), byrow=T)
+    }
+    m[,ind.input] <- xp
+    yp <- as.matrix(o.predict.function(o.model, m)) # as.matrix to deal with case of only one output
+    cu.val <- o.predict.function(o.model, instance)
+
+    # Set up plot parameters
+    if ( is.null(ylim) ) ylim <- o.absminmax[ind.output,]
+    inp.names <- o.input.names
+    if ( is.null(inp.names) )
+      inp.names <- colnames(instance)
+    if ( !is.null(inp.names) )
+      in.name <- inp.names[ind.input]
+    else
+      in.name <- paste("Input value", ind.input)
+    if ( !is.null(o.outputnames) )
+      outname <- o.outputnames[ind.output]
+    else
+      outname <- "Y"
+    if ( is.null(xlab) ) {
+      xlab <- in.name
+    }
+    if ( is.null(ylab) ) {
+      ylab <- "Output value"
+    }
+    if ( is.null(main) ) {
+      main <- outname
+      main <- paste(main, " (", format(o.predict.function(o.model, instance)[ind.output], digits=2), ")", sep="")
+    }
+
+    # Create plot, show current value
+    df <- data.frame(x=xp, y=yp[,ind.output])
+    cdf <- data.frame(x=instance[,ind.input], y=as.numeric(cu.val[ind.output]))
+    p <- ggplot(df, aes(x=x, y=y)) +
+      labs(title=main, x=xlab, y=ylab)
+    if ( is.numeric(instance[,ind.input]) ) {
+      p <- p + geom_line()
+    }
+    else { # factor
+      p <- p + geom_col()
+    }
+    p <- p + geom_point(data=cdf, colour = "red", size=4) + lims(y = ylim)
+
+    # Illustrate CIU calculation?
+    if ( illustrate.CIU ) {
+      cmin <- min(yp[,ind.output])
+      cmax <- max(yp[,ind.output])
+      p <- p +
+        geom_hline(yintercept=cmin, colour=CIU.illustration.colours[1]) +
+        annotate("text", x=in.min, y=cmin, label="ymin", colour=CIU.illustration.colours[1],
+                 vjust = "top", hjust = "inward", fontface="italic") +
+        geom_hline(yintercept=cmax, colour=CIU.illustration.colours[3]) +
+        annotate("text", x=in.min, y=cmax, label="ymax", colour=CIU.illustration.colours[3],
+                 vjust = "bottom", hjust = "inward", fontface="italic") +
+        geom_hline(yintercept=ylim[1], colour=CIU.illustration.colours[4]) +
+        annotate("text", x=in.max, y=ylim[1], label="MIN", colour=CIU.illustration.colours[4],
+                 vjust = "bottom", hjust = "inward", fontface="italic") +
+        geom_hline(yintercept=ylim[2], colour=CIU.illustration.colours[4]) +
+        annotate("text", x=in.max, y=ylim[2], label="MAX", colour=CIU.illustration.colours[4],
+                 vjust = "top", hjust = "inward", fontface="italic") +
+        geom_hline(yintercept=cdf$y, colour=CIU.illustration.colours[4])
+
+      if ( cmax - cdf$y > cdf$y - cmin ) vjust <- "bottom" else vjust <- "top"
+      p <- p + annotate("text", x=in.max, y=cdf$y, label="y", colour=CIU.illustration.colours[4],
+                        vjust = vjust, hjust = "inward", fontface="italic")
+      if ( is.numeric(neutral.CU)) {
+        neutral <- cmin + neutral.CU*(cmax - cmin)
+        if ( cmax - neutral > neutral - cmin ) vjust <- "bottom" else vjust <- "top"
+        p <- p + geom_hline(yintercept=neutral, colour=CIU.illustration.colours[2]) +
+          annotate("text", x=in.min, y=neutral, label="y(u(0))", colour=CIU.illustration.colours[2],
+                   vjust = vjust, hjust = "inward", fontface="italic")
+      }
+    }
+    return(p)
+  }
+
   # See 'ciu.plot.3D'.
   plot.ciu.3D <- function(instance, ind.inputs, ind.output=1, in.min.max.limits=NULL, n.points=40,
                           main=NULL, xlab=NULL, ylab=NULL, zlab=NULL, zlim=NULL, ...) {
@@ -556,12 +690,12 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
       in.min.max.limits <- o.in.minmax
     if ( is.null(in.min.max.limits) )
       stop("No minimum/maximum limits provided to 'new' nor 'explain'")
-    in.mins <- in.min.max.limits[,1]
-    in.maxs <- in.min.max.limits[,2]
-    interv <- (in.maxs[ind.inputs] - in.mins[ind.inputs])/n.points
-    xp <- seq(in.mins[ind.inputs[1]], in.maxs[ind.inputs[1]], by=interv[1])
-    yp <- seq(in.mins[ind.inputs[2]], in.maxs[ind.inputs[2]], by=interv[2])
-    pm <- expand.grid(xp, yp)
+    in.mins <- in.min.max.limits[ind.inputs,1]
+    in.maxs <- in.min.max.limits[ind.inputs,2]
+    interv <- (in.maxs - in.mins)/n.points
+    xp <- seq(in.mins[1], in.maxs[1], by=interv[1])
+    yp <- seq(in.mins[2], in.maxs[2], by=interv[2])
+    pm <- expand.grid(xp,yp)
     if ( is.null(dim(instance)) )
       n.col <- length(instance)
     else
@@ -603,13 +737,14 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     if ( is.null(ylab) ) ylab <- y.name
     if ( is.null(zlab) ) zlab <- "Output value"
     if ( is.null(zlim) ) zlim <- o.absminmax[ind.output,]
-    vt <- persp(xp, yp, zm, xlab=xlab, ylab=ylab, zlab=zlab, zlim=zlim, main=main, ticktype = "detailed", ...) # persp3D might want these: , bg="white", colvar=NULL, col="black", facets=FALSE
+    # Something strange happening here, x and y are somehow inversed?
+    vt <- persp(yp, xp, zm, xlab=ylab, ylab=xlab, zlab=zlab, zlim=zlim, main=main, ticktype = "detailed", ...) # persp3D might want these: , bg="white", colvar=NULL, col="black", facets=FALSE
 
     # Show where current instance is located
     x.plot <- as.numeric(instance[ind.inputs[1]])
     y.plot <- as.numeric(instance[ind.inputs[2]])
     z.plot <- as.numeric(cu.val[ind.output])
-    points(trans3d(x.plot, y.plot, z.plot, pmat = vt), col = "red", pch = 16, cex = 3)
+    points(trans3d(y.plot, x.plot, z.plot, pmat = vt), col = "red", pch = 16, cex = 3)
   }
 
   # See 'ciu.barplot'.
@@ -618,7 +753,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
                           show.input.values=TRUE, concepts.to.explain=NULL,
                           target.concept=NULL, target.ciu=NULL, ciu.meta = NULL,
                           color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
-                          use.influence=FALSE, influence.minmax = c(-1,1),
+                          use.influence=FALSE,
                           sort=NULL, decreasing=FALSE,
                           main=NULL, xlab=NULL, xlim=NULL, ...) {
 
@@ -656,7 +791,7 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     # We get error otherwise...
     CIs <- as.numeric(ci.cu[,1])
     CUs <- as.numeric(ci.cu[,2])
-    C.influence <- (influence.minmax[2] - influence.minmax[1])*CIs*(CUs - neutral.CU)
+    C.influence <- CIs*(CUs - neutral.CU)
 
     # Again, "instance" has to be a data.frame so this can't be NULL.
     inst.name <- rownames(instance)
@@ -885,6 +1020,11 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
                        target.concept=NULL, target.ciu=NULL) {
       explain(instance, ind.inputs.to.explain, in.min.max.limits, n.samples, target.concept, target.ciu)
     },
+    influence = function(ciu.result=NULL, neutral.CU=0.5) {
+      if ( is.null(ciu.result) )
+        ciu.result <- o.last.ciu
+      ci <- ciu.result$CI*(ciu.result$CU - neutral.CU)
+    },
     meta.explain = function(instance, ind.inputs=NULL, in.min.max.limits=NULL,
                             n.samples=100, concepts.to.explain=NULL,
                             target.concept=NULL, target.ciu=NULL) {
@@ -893,7 +1033,11 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
                        target.concept, target.ciu)
     },
     plot.ciu = function(instance, ind.input=1, ind.output=1, in.min.max.limits=NULL, n.points=40, main=NULL, xlab=NULL, ylab=NULL, ylim=NULL, ...) {
-      plot.ciu (instance, ind.input, ind.output, in.min.max.limits, n.points, main, xlab, ylab, ylim, ...)
+      plot.ciu(instance, ind.input, ind.output, in.min.max.limits, n.points, main, xlab, ylab, ylim, ...)
+    },
+    ggplot.ciu = function(instance, ind.input=1, ind.output=1, in.min.max.limits=NULL, n.points=40, main=NULL, xlab=NULL, ylab=NULL,
+                          ylim=NULL, illustrate.CIU=FALSE, neutral.CU=0.5, CIU.illustration.colours=c("red", "orange", "green", "blue")) {
+      ggplot.ciu(instance, ind.input, ind.output, in.min.max.limits, n.points, main, xlab, ylab, ylim, illustrate.CIU, neutral.CU, CIU.illustration.colours)
     },
     plot.ciu.3D = function(instance, ind.inputs, ind.output, in.min.max.limits=NULL, n.points=40,
                            main=NULL, xlab=NULL, ylab=NULL, zlab=NULL, zlim=NULL, ...) {
@@ -902,12 +1046,12 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
     barplot.ciu = function(instance=NULL, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
                            neutral.CU=0.5, show.input.values=TRUE, concepts.to.explain=NULL, target.concept=NULL, target.ciu=NULL,
                            ciu.meta = NULL, color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
-                           use.influence=FALSE, influence.minmax = c(-1,1),
+                           use.influence=FALSE,
                            sort=NULL, decreasing=FALSE,
                            main= NULL, xlab=NULL, xlim=NULL, ...) {
       barplot.ciu(instance, ind.inputs, ind.output, in.min.max.limits, n.samples, neutral.CU, show.input.values,
                   concepts.to.explain, target.concept, target.ciu, ciu.meta, color.ramp.below.neutral, color.ramp.above.neutral,
-                  use.influence, influence.minmax, sort, decreasing, main, xlab, xlim, ...)
+                  use.influence, sort, decreasing, main, xlab, xlim, ...)
     },
     pie.ciu = function(instance=NULL, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
                        neutral.CU=0.5, show.input.values=TRUE, concepts.to.explain=NULL,
@@ -926,17 +1070,20 @@ ciu.new <- function(bb, formula=NULL, data=NULL, in.min.max.limits=NULL, abs.min
                               show.input.values=TRUE, concepts.to.explain=NULL,
                               target.concept=NULL, target.ciu=NULL,
                               ciu.meta = NULL,
+                              plot.mode = "colour_cu",
+                              ci.colours = c("aquamarine", "aquamarine3", "0.3"),
+                              cu.colours = c("darkgreen", "darkgreen", "0.8"),
                               low.color="red", mid.color="yellow",
                               high.color="darkgreen",
-                              use.influence=FALSE, influence.minmax = c(-1,1),
+                              use.influence=FALSE,
                               sort=NULL, decreasing=FALSE, # These are not used yet.
                               main=NULL) {
       ciu.ggplot.col(as.ciu(), instance, ind.inputs, output.names, in.min.max.limits,
                      n.samples, neutral.CU,
                      show.input.values, concepts.to.explain,
-                     target.concept, target.ciu, ciu.meta,
+                     target.concept, target.ciu, ciu.meta, plot.mode, ci.colours, cu.colours,
                      low.color, mid.color, high.color,
-                     use.influence,influence.minmax,
+                     use.influence,
                      sort, decreasing, main)
     },
     textual = function(instance=NULL, ind.inputs=NULL, ind.output=1,

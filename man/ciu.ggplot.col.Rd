@@ -17,11 +17,13 @@ ciu.ggplot.col(
   target.concept = NULL,
   target.ciu = NULL,
   ciu.meta = NULL,
+  plot.mode = "colour_cu",
+  ci.colours = c("aquamarine", "aquamarine3", "0.3"),
+  cu.colours = c("darkgreen", "darkgreen", "0.8"),
   low.color = "red",
   mid.color = "yellow",
   high.color = "darkgreen",
   use.influence = FALSE,
-  influence.minmax = c(-1, 1),
   sort = NULL,
   decreasing = FALSE,
   main = NULL
@@ -83,6 +85,15 @@ has already been calculated for some reason.}
 \item{ciu.meta}{If given, then use existing \code{ciu.meta.result} rather
 than calling \link{ciu.meta.explain}.}
 
+\item{plot.mode}{"overlap" or "colour_cu". Default is "colour_cu".}
+
+\item{ci.colours}{Colours to use for CI part in "overlap" mode. Three values
+required: fill colour, border colour, alpha. Default is c("aquamarine", "aquamarine3", "0.3").}
+
+\item{cu.colours}{Colours to use for CU part in "overlap" mode. Three values
+required: fill colour, border colour, alpha. Default is c("darkgreen", "darkgreen", "0.8").
+If it is set to NULL, then the same colour palette is used as for "colour_cu".}
+
 \item{low.color}{Colour to use for CU=0}
 
 \item{mid.color}{Colour to use for CU=Neutral.CU}
@@ -91,8 +102,6 @@ than calling \link{ciu.meta.explain}.}
 
 \item{use.influence}{Plot using "influence" rather than CIU, i.e. a
 LIME-like barplot. Default is FALSE.}
-
-\item{influence.minmax}{Range to use for influence values.}
 
 \item{sort}{NULL, "CI" or "CU".}
 

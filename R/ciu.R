@@ -156,16 +156,39 @@ ciu.plot <- function(ciu, instance, ind.input, ind.output, in.min.max.limits=NUL
   ciu$plot.ciu (instance, ind.input, ind.output, in.min.max.limits, n.points, main, xlab, ylab, ylim, ...)
 }
 
+#' ciu.ggplot
+#'
+#' Function for plotting out the effect of changing values of one input on one output.
+#'
+#' @inheritParams ciu.plot
+#' @param illustrate.CIU Include illustration of CIU Cmin, Cmax, neutral.CU. Default is FALSE
+#' @param neutral.CU Value of neutral.CU. Default is 0.5.
+#' @param CIU.illustration.colours Colours to use for illustrating CIU.
+#' Default is red, orange, green.
+#'
+#' @return ggplot object.
+#' @export
+#' @author Kary Främling
+ciu.ggplot <- function(ciu, instance, ind.input=1, ind.output=1, in.min.max.limits=NULL, n.points=40, main=NULL, xlab=NULL, ylab=NULL,
+                       ylim=NULL, illustrate.CIU=FALSE, neutral.CU=0.5, CIU.illustration.colours=c("red", "orange", "green", "blue")) {
+  if ( inherits(ciu, "ciu") )
+    ciu <- ciu.to.CIU(ciu)
+  ciu$ggplot.ciu(instance, ind.input, ind.output, in.min.max.limits, n.points, main, xlab, ylab,
+                 ylim, illustrate.CIU, neutral.CU, CIU.illustration.colours)
+}
+
 #' ciu.plot.3D
 #'
 #' Function for 3D plotting the effect of changing values of two inputs on one output.
 #'
 #' @inheritParams ciu.explain
+#' @inheritParams graphics::plot
 #' @inheritParams graphics::persp
 #' @param ind.inputs Indices of input features to plot.
 #' @param ind.output Index of output to plot.
 #' @param n.points Number of x/y-axis points to use.
-#'
+#' @param zlab Label to use for Z-axis. Default: NULL.
+#' @param zlim Limits to use for Z-axis. Default: NULL.
 #' @return "void", or whatever happens to be result of last instruction.
 #' @export
 #' @author Kary Främling
@@ -182,7 +205,7 @@ ciu.plot.3D <- function(ciu, instance, ind.inputs, ind.output, in.min.max.limits
 #' red to green, via yellow, for the given inputs and the given output.
 #'
 #' @inheritParams ciu.meta.explain
-#' @param ind.inputs \code{\link{vector}} of indices for the inputs to be
+#' @param ind.inputs Vector of indices for the inputs to be
 #' included in the plot. If NULL then all inputs will be included.
 #' @param ind.output Index of output to be explained.
 #' @param neutral.CU Indicates when the Contextual Utility is considered
@@ -200,7 +223,6 @@ ciu.plot.3D <- function(ciu, instance, ind.inputs, ind.output, in.min.max.limits
 #' `colorRamp()`. Default colorramp is from yellow to darkgreen.
 #' @param use.influence Plot using "influence" rather than CIU, i.e. a
 #' LIME-like barplot. Default is FALSE.
-#' @param influence.minmax Range to use for influence values.
 #' @param sort NULL, "CI" or "CU".
 #' @param decreasing Set to TRUE for decreasing sort.
 #' @param main Text to use as main title.
@@ -211,22 +233,20 @@ ciu.plot.3D <- function(ciu, instance, ind.inputs, ind.output, in.min.max.limits
 #' @return "void", i.e. whatever happens to be result of last instruction.
 #' @export
 #' @author Kary Främling
-#' @seealso [ggplot.col.ciu]
-#' @seealso [pie.ciu]
 #' @seealso [ciu.new]
 #' @seealso [ciu.explain]
 ciu.barplot <- function(ciu, instance, ind.inputs=NULL, ind.output=1, in.min.max.limits=NULL, n.samples=100,
                         neutral.CU=0.5, show.input.values=TRUE, concepts.to.explain=NULL, target.concept=NULL, target.ciu=NULL,
                         ciu.meta = NULL,
                         color.ramp.below.neutral=NULL, color.ramp.above.neutral=NULL,
-                        use.influence=FALSE, influence.minmax = c(-1,1),
+                        use.influence=FALSE,
                         sort=NULL, decreasing=FALSE,
                         main= NULL, xlab=NULL, xlim=NULL, ...) {
   if ( inherits(ciu, "ciu") )
     ciu <- ciu.to.CIU(ciu)
   ciu$barplot.ciu(instance, ind.inputs, ind.output, in.min.max.limits, n.samples, neutral.CU, show.input.values,
                   concepts.to.explain, target.concept, target.ciu, ciu.meta, color.ramp.below.neutral, color.ramp.above.neutral,
-                  use.influence, influence.minmax, sort, decreasing, main, xlab, xlim, ...)
+                  use.influence, sort, decreasing, main, xlab, xlim, ...)
 }
 
 #' ciu.pie
