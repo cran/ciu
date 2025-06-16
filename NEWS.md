@@ -1,3 +1,24 @@
+# ciu 0.8
+
+* Changed the default colours if influence/contrastive plots to the brick red
+  / blue used by LIME in R version.
+* Corrected the function "ciu.contrastive" that was implemented in a very strange
+  (and presumably incorrect) way.
+* Added possibility to get line segment IO-plots for categorical features,
+  rather than the earlier histogram visualisation. Added parameter to
+  ggplot.ciu() "categorical_style="segment"", where the default is now to
+  use line segments, even though that breaks backwards compatibility a little.
+  However, for some reason setting "ylim" breaks the old "geom_col" plot so the bar
+  plots are now un-scaled. But, strange enough, "+ ylim" applied to the returned
+  ggplot works so it's possible to adjust afterwards. Something happened somewhere,
+  no change in the CIU code and it worked in the past.
+* Added new function ciu.contrastive that uses CU values of one 
+  class/instance/whatever as the baseline "normal.CU" values of the other. 
+* Added new function ciu.contextual.influence that calculates contextual influence 
+  value(s) from CI and CU value(s) and "baseline".
+* Added new file ContextualInfluence.R for functions related to contextual influence. 
+* Fixed x-axis label error for influence plot in ``ciu.ggplot.col``.
+
 # ciu 0.6.0
 
 * Extensive tests on Intermediate Concepts, which are also integrated into the 

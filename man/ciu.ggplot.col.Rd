@@ -24,6 +24,7 @@ ciu.ggplot.col(
   mid.color = "yellow",
   high.color = "darkgreen",
   use.influence = FALSE,
+  scale.CI = FALSE,
   sort = NULL,
   decreasing = FALSE,
   main = NULL
@@ -38,7 +39,7 @@ with \code{CIU} object as created by \link{ciu.new}).}
 names and other needed metadata can be deduced from the dataset or other
 parameters given to \code{\link{ciu.new}}.}
 
-\item{ind.inputs}{Indices of input features to explain (the set {i} in CIU
+\item{ind.inputs}{Indices of input features to explain (the set \{i\} in CIU
 formulae)}
 
 \item{output.names}{Vector with names of outputs to include.
@@ -102,6 +103,8 @@ If it is set to NULL, then the same colour palette is used as for "colour_cu".}
 
 \item{use.influence}{Plot using "influence" rather than CIU, i.e. a
 LIME-like barplot. Default is FALSE.}
+
+\item{scale.CI}{Scale x-axis according to maximal CI value.}
 
 \item{sort}{NULL, "CI" or "CU".}
 

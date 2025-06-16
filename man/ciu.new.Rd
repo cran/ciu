@@ -61,8 +61,6 @@ two intermediate concepts and a higher-level one that combines them:
 }
 \value{
 Object of class \code{CIU}.
-
-\code{ciu} object
 }
 \description{
 Sets up a CIU object with the given parameters. CIU objects have "public"
@@ -149,13 +147,8 @@ Främling, K. \emph{Contextual Importance and Utility in R: the 'ciu' Package.}
 In: Proceedings of 1st Workshop on Explainable Agency in Artificial Intelligence,
 at 35th AAAI Conference on Artificial Intelligence. Virtual, Online. February 8-9, 2021. pp. 110-114.
 
-Främling, K. \emph{Explainable AI without Interpretable Model}. 2020, \url{https://arxiv.org/abs/2009.13996}.
-
-Främling, K. \emph{Decision Theory Meets Explainable AI}. 2020, <doi.org/10.1007/978-3-030-51924-7_4>.
-
-Främling, K. \emph{Modélisation et apprentissage des préférences par réseaux de neurones pour l'aide à la décision multicritère}. 1996, \url{https://tel.archives-ouvertes.fr/tel-00825854/document} (title translation in English: \emph{Learning and Explaining Preferences with Neural Networks for Multiple Criteria Decision Making})
+Främling, K. \emph{Decision Theory Meets Explainable AI}. 2020, \url{doi:10.1007/978-3-030-51924-7_4}.
 }
 \author{
 Kary Främling
-Create \code{ciu} object from this \code{CIU} object.
 }
